@@ -1,0 +1,11 @@
+[tools]
+python = "3.11"
+
+[env]
+_.python.venv = ".venv"
+
+[tasks.setup]
+run = "pip install --upgrade pip && pip install -r requirements.txt"
+
+[tasks.notebook]
+run = "jupyter lab"
