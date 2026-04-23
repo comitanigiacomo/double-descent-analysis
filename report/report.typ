@@ -27,19 +27,19 @@
   ],
 )
 
-= Initial Declarations
-
-“I declare that this material, which I now submit for assessment, is entirely my own work and has not been taken from the work of others, save and to the extent that such work has been cited and acknowledged within the text of my work. I understand that plagiarism, collusion, and copying are grave and serious offences in the university and accept the penalties that would be imposed should I engage in plagiarism, collusion or copying. This assignment, or any part of it, has not been previously submitted by me or any other person for assessment on this or any other course of study“
-
 = Important choices
 
 == Generation of the synthetic dataset
 
-The first step of the project was to construct the synthetic dataset. To natively prevent data leakage, I generated the training and test sets as completely independent blocks right from the start. As highlighted by the official scikit-learn guidelines @scikitlearnCommonPitfalls, splitting the data into independent training and test subsets must always be the very first step before any processing. This strict separation guarantees that the model has no possibility of accessing the test data during the training phase. Since the assignment gave us the freedom to design the data-generating process, I chose to sample the input features $X$ from a standard Gaussian distribution. I made this choice because it naturally gives all the features the exact same scale (mean 0 and variance 1) and keeps them independent. This way, I don't need to manually normalize the data. Following the assignment guidelines, I defined the target labels as a linear combination of these inputs: 
+The first step of the project was to construct the synthetic dataset. To natively prevent data leakage, I generated the training and test sets as completely independent blocks right from the start. As highlighted by the official scikit-learn guidelines @scikitlearnCommonPitfalls, splitting the data into independent training and test subsets must always be the very first step before any processing. This strict separation guarantees that the model has no possibility of accessing the test data during the training phase.
+
+To simulate a real-world scenario and reproduce the classical U-shaped bias-variance trade-off, I designed the synthetic dataset such that the true generative signal depends exclusively on the first 20 features out of the available 205. By iteratively training the model on an increasing number of features $d$, I was able to observe both the _underfitting_ and _overfitting_ regimes, fully confirming classical statistical learning theory.
+
+Since the assignment gave us the freedom to design the data-generating process, I chose to sample the input features $X$ from a standard Gaussian distribution. I made this choice because it naturally gives all the features the exact same scale (mean 0 and variance 1) and keeps them independent. This way, I don't need to manually normalize the data. Following the assignment guidelines, I defined the target labels as a linear combination of these inputs:
 
 $ y = X w^* + epsilon $
 
-where: 
+where:
 
 - $y in RR^n$ represents the vector of the target labels.
 
@@ -52,3 +52,79 @@ where:
 During the creation of the labels, I introduced noise to simulate a realistic scenario. This noise was again sampled from a Gaussian distribution. To prevent data leakage, the noise vectors for the training and the test sets were generated via two separate calls. Reusing the same noise for training and test would violate the i.i.d. assumption, creating a situation in which test labels are mathematically correlated with training labels @data-leakage.
 
 Finally, I implemented a fixed seed for the random number generator. A core requirement of this project is reproducibility; the seed acts as a deterministic starting point for the pseudo-random numbers, ensuring that the exact same dataset and results can be perfectly replicated multiple times and on different machines @JMLR:v22:20-303. Without the seed, the process of generating random numbers would initialize at a different state during every execution (typically using the machine's internal clock as a starting point), making it impossible to obtain a perfect replica of the work on different machines.
+
+#pagebreak()
+
+== Model Training
+
+In this section of the report, I will cover the main theoretical concepts that guided the development of the project. As requested by the assignment guidelines, I focused on _Least Squares_ and _Ridge Regression_ to train the linear models.
+
+=== Least Squares
+
+The first training approach I focused on was _Ordinary Least Squares_ (OLS). Since I am dealing with a regression task, where $y in RR$ and the linear predictor is $h(x) = w^T x$, I evaluate the model using the _square loss_:
+
+$ ell(w) = (w^T x - y)^2 $
+
+The Empirical Risk Minimization (ERM) solution minimizes the residual sum of squares:
+
+$ w_S = "argmin"_(w in RR^d) sum_(t=1)^n (w^T x_t - y_t)^2 = "argmin"_w norm(X w - y)^2 $
+
+where $X$ is the $n times d$ design matrix (whose rows are $x_t^T$) and $y$ is the target label vector.
+
+Since the objective function is convex, I can find the global minimum by setting its gradient with respect to $w$ to zero:
+
+$ nabla_w norm(X w - y)^2 = 2 X^T (X w - y) = 0 \ X^T X w = X^T y $
+
+If $X^T X$ is invertible (i.e., the features are linearly independent), we obtain the closed-form *Ordinary Least Squares (OLS)* solution:
+
+$ w_S = (X^T X)^(-1) X^T y $
+
+As a first step, I implemented this exact mathematical formulation from scratch to train the model and observe the initial results.
+
+#pagebreak()
+
+=== observations
+
+Strictly implementing the exact closed-form OLS formulation, I obtained the following empirical results:
+
+#align(center)[
+  #image("/assets/OLS-implementation.png", width: 400pt)
+]
+
+Analyzing the learning dynamics, the expected classical behavior is clearly visible across the different parameterization regimes. In the initial phase ($d < 20$), the model suffers from high bias. Because the true labels are generated using exactly 20 features, restricting the model to fewer dimensions deprives it of critical information needed to capture the underlying phenomenon, which naturally results in a high test error. However, at exactly $d = 20$, the model's capacity perfectly matches the true complexity of the data. Here, it gains access to all the necessary predictive information without any distracting noise, successfully reaching a "sweet spot" that minimizes the test error.
+
+As the dimensionality $d$ increases beyond 20, the model enters the high-variance regime. It starts leveraging the additional, irrelevant features to blindly memorize the stochastic noise present in the training set. Consequently, the test error rapidly surges, while the training error steadily decreases. This overfitting phase culminates at the interpolation threshold ($d = n = 100$), where the model perfectly memorizes the training data, driving the training error to absolute zero.
+
+Finally, attempting to increase the features beyond this interpolation point ($d > n$) leads to a breakdown.
+
+=== The Singularity Problem
+
+In the previous phase of the work, I used the closed-form Ordinary Least Squares solution, which requires calculating the inverse of the covariance matrix:
+
+$ (X^T X)^(-1) $
+
+From linear algebra, it is known that for a matrix to be invertible, it must be strictly full-rank (i.e., its rank must equal its dimension). The matrix $X^T X$ has dimensions $d times d$, and its rank is bounded by the rank of the original $n times d$ matrix $X$, which is at most $min(n, d)$.
+
+When the number of features $d$ is less than or equal to $n$, the rank is $d$. The matrix is full-rank and therefore invertible. However, when the number of features strictly exceeds the number of samples ($d > 100$), the maximum possible rank is bounded by $n$. Since $n < d$, the matrix $X^T X$ becomes rank-deficient. Consequently, its determinant becomes exactly zero, making it a singular matrix. 
+
+Mathematically, calculating the inverse involves dividing by the determinant. Since dividing by zero is undefined, the program should simply halt and throw an exception for $d > 100$. However, the graph displays strange, erratic points beyond the threshold instead of an immediate crash. This happens due to floating-point precision issues: the computer approximates the theoretically zero-valued determinant (and the zero eigenvalues) as infinitesimally small numbers (e.g., $10^(-16)$). Dividing by these near-zero values avoids a hard crash but produces astronomically large, garbage weights. 
+
+To empirically verify that these anomalous points are just numerical artifacts and why the code does not immediately crash, I logged the minimum eigenvalue of the covariance matrix $X^T X$ and the maximum weight magnitude during the training loop:
+
+#align(center)[
+```text
+...
+d =  95 | Min Eigenvalue: 2.61e-01 | Max Weight: 2.12e+00
+d = 100 | Min Eigenvalue: 1.03e-03 | Max Weight: 5.13e+00
+d = 105 | Min Eigenvalue: 2.11e-15 | Max Weight: 5.42e+00
+...
+d = 120 | Min Eigenvalue: 8.93e-16 | Max Weight: 9.02e+02
+...
+d = 190 | Min Eigenvalue: 6.37e-16 | Max Weight: 4.25e+03
+```
+]
+
+This output perfectly explains the program's behavior. Before the threshold ($d<100$), the minimum eigenvalue is significantly greater than zero, allowing for a stable matrix inversion with bounded weights (around 2.4). However, as soon as $d>100$, the minimum eigenvalue drops to floating-point zero ($10^(-15)$). Dividing by this microscopic approximation allows the code to keep executing without triggering a ZeroDivisionError, but it causes the weights to skyrocket by several orders of magnitude (e.g., reaching $4.25 times 10^3$ at $d=190$).
+
+Therefore, the erratic points plotted after $d=100$ are not the result of standard overfitting, but merely the visual representation of this computational failure
+
