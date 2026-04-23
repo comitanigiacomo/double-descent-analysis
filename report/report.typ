@@ -83,12 +83,12 @@ As a first step, I implemented this exact mathematical formulation from scratch 
 
 #pagebreak()
 
-=== observations
+=== Observations
 
 Strictly implementing the exact closed-form OLS formulation, I obtained the following empirical results:
 
 #align(center)[
-  #image("/assets/OLS-implementation.png", width: 400pt)
+  #image("/assets/OLS_implementation.png", width: 400pt)
 ]
 
 Analyzing the learning dynamics, the expected classical behavior is clearly visible across the different parameterization regimes. In the initial phase ($d < 20$), the model suffers from high bias. Because the true labels are generated using exactly 20 features, restricting the model to fewer dimensions deprives it of critical information needed to capture the underlying phenomenon, which naturally results in a high test error. However, at exactly $d = 20$, the model's capacity perfectly matches the true complexity of the data. Here, it gains access to all the necessary predictive information without any distracting noise, successfully reaching a "sweet spot" that minimizes the test error.
@@ -105,26 +105,45 @@ $ (X^T X)^(-1) $
 
 From linear algebra, it is known that for a matrix to be invertible, it must be strictly full-rank (i.e., its rank must equal its dimension). The matrix $X^T X$ has dimensions $d times d$, and its rank is bounded by the rank of the original $n times d$ matrix $X$, which is at most $min(n, d)$.
 
-When the number of features $d$ is less than or equal to $n$, the rank is $d$. The matrix is full-rank and therefore invertible. However, when the number of features strictly exceeds the number of samples ($d > 100$), the maximum possible rank is bounded by $n$. Since $n < d$, the matrix $X^T X$ becomes rank-deficient. Consequently, its determinant becomes exactly zero, making it a singular matrix. 
+When the number of features $d$ is less than or equal to $n$, the rank is $d$. The matrix is full-rank and therefore invertible. However, when the number of features strictly exceeds the number of samples ($d > 100$), the maximum possible rank is bounded by $n$. Since $n < d$, the matrix $X^T X$ becomes rank-deficient. Consequently, its determinant becomes exactly zero, making it a singular matrix.
 
-Mathematically, calculating the inverse involves dividing by the determinant. Since dividing by zero is undefined, the program should simply halt and throw an exception for $d > 100$. However, the graph displays strange, erratic points beyond the threshold instead of an immediate crash. This happens due to floating-point precision issues: the computer approximates the theoretically zero-valued determinant (and the zero eigenvalues) as infinitesimally small numbers (e.g., $10^(-16)$). Dividing by these near-zero values avoids a hard crash but produces astronomically large, garbage weights. 
+Mathematically, calculating the inverse involves dividing by the determinant. Since dividing by zero is undefined, the program should simply halt and throw an exception for $d > 100$. However, the graph displays strange, erratic points beyond the threshold instead of an immediate crash. This happens due to floating-point precision issues: the computer approximates the theoretically zero-valued determinant (and the zero eigenvalues) as infinitesimally small numbers (e.g., $10^(-16)$). Dividing by these near-zero values avoids a hard crash but produces astronomically large, garbage weights.
 
 To empirically verify that these anomalous points are just numerical artifacts and why the code does not immediately crash, I logged the minimum eigenvalue of the covariance matrix $X^T X$ and the maximum weight magnitude during the training loop:
 
 #align(center)[
-```text
-...
-d =  95 | Min Eigenvalue: 2.61e-01 | Max Weight: 2.12e+00
-d = 100 | Min Eigenvalue: 1.03e-03 | Max Weight: 5.13e+00
-d = 105 | Min Eigenvalue: 2.11e-15 | Max Weight: 5.42e+00
-...
-d = 120 | Min Eigenvalue: 8.93e-16 | Max Weight: 9.02e+02
-...
-d = 190 | Min Eigenvalue: 6.37e-16 | Max Weight: 4.25e+03
-```
+  ```text
+  ...
+  d =  95 | Min Eigenvalue: 2.61e-01 | Max Weight: 2.12e+00
+  d = 100 | Min Eigenvalue: 1.03e-03 | Max Weight: 5.13e+00
+  d = 105 | Min Eigenvalue: 2.11e-15 | Max Weight: 5.42e+00
+  ...
+  d = 120 | Min Eigenvalue: 8.93e-16 | Max Weight: 9.02e+02
+  ...
+  d = 190 | Min Eigenvalue: 6.37e-16 | Max Weight: 4.25e+03
+  ```
 ]
 
 This output perfectly explains the program's behavior. Before the threshold ($d<100$), the minimum eigenvalue is significantly greater than zero, allowing for a stable matrix inversion with bounded weights (around 2.4). However, as soon as $d>100$, the minimum eigenvalue drops to floating-point zero ($10^(-15)$). Dividing by this microscopic approximation allows the code to keep executing without triggering a ZeroDivisionError, but it causes the weights to skyrocket by several orders of magnitude (e.g., reaching $4.25 times 10^3$ at $d=190$).
 
-Therefore, the erratic points plotted after $d=100$ are not the result of standard overfitting, but merely the visual representation of this computational failure
+Therefore, the erratic points plotted after $d=100$ are not the result of standard overfitting, but merely the visual representation of this computational failure.
 
+=== Ridge Regression
+
+In real-world scenarios, it is common to encounter highly complex models with a massive number of features that must be trained on a much smaller number of examples ($d > n$). In these high-dimensional settings, classical unregularized ML fails, as we have seen above, because the covariance matrix $X^T X$ becomes singular and not invertible.
+
+To overcome this problem, a standard approach taught in this course is to apply _Ridge Regression_ ($L_2$ regularization). Ridge regression basically adds a small positive constant, $alpha$, to the main diagonal of the covariance matrix:
+
+$ w_(S, alpha) = (X^T X + alpha I)^(-1) X^T y $
+
+This mathematical addition ensures that all the eigenvalues of the matrix become strictly greater than zero. By doing so, it makes the matrix strictly positive-definite and always perfectly invertible, preventing the model from crashing.
+
+To empirically verify this theoretical behavior, I ran the same experiment using Ridge Regression with a small penalty parameter ($alpha = 0.1$).
+
+#align(center)[
+  #image("/assets/ridge_plot.png", width: 400pt)
+]
+
+As expected, the regularization term completely resolves the singularity breakdown. Looking at the graph, the massive error spike at the interpolation threshold ($d=n=100$) has completely disappeared. Because the matrix inversion is now mathematically stable, the model no longer calculates artificially inflated weights. Instead of failing or producing numerical garbage, the test error remains safely bounded even when the number of features strictly exceeds the number of examples ($d > n$). 
+
+This result effectively demonstrates the classical machine learning approach: when faced with an over-parameterized system that would normally crash, regularization acts as the required safety net to keep the mathematics intact and the predictions bounded.
