@@ -215,3 +215,26 @@ Looking at the plot, the norm of the weights spikes exactly at the interpolation
 At the end of their paper, Belkin et al. point out that while the classic U-shaped bias-variance curve has taught us a lot about machine learning, it has clear limits. 
 
 The results from my project confirm exactly that. The classical theory works perfectly fine when we have fewer features than examples (the under-parameterized regime). However, it completely misses the mark when it comes to explaining modern machine learning. By pushing past the interpolation threshold ($d > n$) and using the right inductive bias (like keeping the norm small), models don't just crash. Instead, they push through the singularity problem, experience a "second descent" in test error, and actually achieve great generalization.
+
+== Extension
+
+=== Gradient Descent vs Closed-Form Solution
+
+In the previous phase, I used a closed formula to find the minimum-norm solution for the $d > n$ regime. While this works in theory, inverting massive matrices in real-world scenarios is computationally expensive. A standard alternative is _Gradient Descent_.
+
+Gradient descent updates the weights step by step to minimize the error. But since there are infinitely many perfect solutions in this over-parameterized regime, which one will it naturally find?
+
+To test this, I implemented a simple Gradient Descent from scratch. Following the literature, I initialized all weights to zero ($w = 0$). 
+
+This starting point triggers a phenomenon called _implicit regularization_ @neyshabur2014search. Without needing any complex matrix inversion, the optimization algorithm inherently acts as a regularizer. Specifically, Zhang et al. @zhang2016understanding demonstrated that for over-parameterized linear models, starting gradient descent at zero guarantees convergence to the exact minimum $L_2$-norm solution.
+
+To verify this, I plotted the test error of my iterative Gradient Descent against my previous closed-form formula:
+
+#align(center)[
+  #image("/assets/closed_form_vs_gradient_descent.png", width: 400pt)
+]
+
+Looking at the graph, the two curves perfectly overlap in both the under-parameterized and highly over-parameterized regimes, confirming the implicit bias theory. 
+
+A divergence occurs exactly at the interpolation threshold ($d=n$). While the closed-form solution suffers from a massive error spike due to the inversion of a nearly singular matrix, the Gradient Descent curve remains significantly lower and more stable. This happens because Gradient Descent does not divide by zero; instead, it takes iterative steps. Running the algorithm for a finite number of epochs prevents the weights from reaching the astronomically large values caused by the singularity.
+
