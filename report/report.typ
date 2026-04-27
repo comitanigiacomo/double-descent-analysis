@@ -212,12 +212,6 @@ To be sure that this "second descent" was actually driven by the model becoming 
 
 Looking at the plot, the norm of the weights spikes exactly at the interpolation threshold ($d=n$). But once we move past that point, the norm steadily decreases as the number of features $d$ grows. This curve matches the drop in test error almost perfectly. It's a great practical proof of the theory: having way more parameters actually helps the model generalize better, because it has enough "room" to find a simpler, smoother way to fit the data.
 
-=== Conclusion
-
-At the end of their paper, Belkin et al. point out that while the classic U-shaped bias-variance curve has taught us a lot about machine learning, it has clear limits.
-
-The results from my project confirm exactly that. The classical theory works perfectly fine when we have fewer features than examples (the under-parameterized regime). However, it completely misses the mark when it comes to explaining modern machine learning. By pushing past the interpolation threshold ($d > n$) and using the right inductive bias (like keeping the norm small), models don't just crash. Instead, they push through the singularity problem, experience a "second descent" in test error, and actually achieve great generalization.
-
 == Extension
 
 === Gradient Descent vs Closed-Form Solution
@@ -253,4 +247,14 @@ By comparing a "clean" dataset ($sigma = 0.2$) with a "noisy" one ($sigma = 1.5$
 As shown in the plot, the high-noise curve (red) remains consistently above the low-noise one (green). As discussed in recent literature @Ullah, this occurs because at the threshold $d=n$, the model is forced to perfectly fit every data point. If these points contain high levels of noise, the weights must fluctuate wildly to interpolate them, leading to bad generalization.
 
 I maintained the _logarithmic scale_ for this visualization because the disparity between the two peaks is so large (nearly two orders of magnitude) that a linear scale would have made the low-noise curve appear flat, hiding its double descent.
+
+=== Conclusions
+
+At the end of their paper, Belkin et al. point out that while the classic U-shaped bias-variance curve has taught us a lot about machine learning, it has clear limits.
+
+The results from my project confirm exactly that. The classical theory works perfectly fine when we have fewer features than examples (the under-parameterized regime). However, it completely misses the mark when it comes to explaining modern machine learning. By pushing past the interpolation threshold ($d > n$) and using the right inductive bias (like keeping the norm small), models don't just crash. Instead, they push through the singularity problem, experience a "second descent" in test error, and actually achieve great generalization.
+
+Through the Gradient Descent analysis, I saw that we don't necessarily need a complex closed formula to get the best results. If the algorithm starts from zero, it naturally favors the simplest solution with the smallest weights. Furthermore, the experiment on the Effect of Noise showed that while dirty data makes the model struggle a lot at the critical threshold, having more parameters actually helps to stabilize the predictions and manage the noise better.
+
+
 
