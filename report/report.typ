@@ -1,7 +1,7 @@
 #import "@preview/ilm:2.0.0": *
 
 #set text(lang: "en")
-#set text(size: 10.5pt)
+#set text(font: "New Computer Modern")
 
 #show: ilm.with(
   title: [Project 4: Double Descent in Linear Models],
@@ -26,6 +26,9 @@
     #counter(page).display()
   ],
 )
+
+
+#set text(size: 10.5pt)
 
 = Important choices
 
@@ -144,6 +147,71 @@ To empirically verify this theoretical behavior, I ran the same experiment using
   #image("/assets/ridge_plot.png", width: 400pt)
 ]
 
-As expected, the regularization term completely resolves the singularity breakdown. Looking at the graph, the massive error spike at the interpolation threshold ($d=n=100$) has completely disappeared. Because the matrix inversion is now mathematically stable, the model no longer calculates artificially inflated weights. Instead of failing or producing numerical garbage, the test error remains safely bounded even when the number of features strictly exceeds the number of examples ($d > n$). 
+As expected, the regularization term completely resolves the singularity breakdown. Looking at the graph, the massive error spike at the interpolation threshold ($d=n=100$) has completely disappeared. Because the matrix inversion is now mathematically stable, the model no longer calculates artificially inflated weights. Instead of failing or producing numerical garbage, the test error remains safely bounded even when the number of features strictly exceeds the number of examples ($d > n$).
 
-This result effectively demonstrates the classical machine learning approach: when faced with an over-parameterized system that would normally crash, regularization acts as the required safety net to keep the mathematics intact and the predictions bounded.
+While Ridge Regression successfully prevents the model from crashing, it acts as a mathematical constraint. By penalizing the weights, it prevents the model from perfectly fitting the training data, forcing the model to accept some training error (bias) to prevent catastrophic overfitting (variance)@Hastie01102020.
+
+However, this fails to explain the reality of modern machine learning. Today's highly complex models, such as large neural networks, operate heavily in the over-parameterized regime $(d>>n)$ often without relying on heavy explicit regularization like Ridge @zhang2016understanding. They are trained until they perfectly interpolate the training data (reaching exactly zero training error), yet they still generalize well to unseen data. Classical theory dictates that such models should strictly fail.
+
+To explain this, we must analyze the Double Descent phenomenon.
+
+=== Double Descent
+
+To correctly recreate the double descent curve, I based my approach on the framework proposed by Belkin et al. @belkin2019reconciling, specifically focusing on their implementation for linear predictors.
+
+Citing the paper:
+
+#quote(block: true, attribution: [@belkin2019reconciling])[
+
+The minimum norm interpolating classifier... can be obtained directly by explicit norm minimization (solving an explicit system of linear equations), through SGD or by averaging trajectories.
+]
+
+Among these options, I chose to implement the _explicit norm minimization_ from scratch. 
+
+In the over-parameterized regime ($d > n$), the model has more features than training examples. This creates an under-determined mathematical system: there are infinitely many different weight vectors $w$ that can perfectly fit the training data (achieving $X w = y$). To decide which of these infinite solutions to use, we apply a mathematical version of Occam's razor: we select the "simplest" model by finding the weights that are closest to zero. Mathematically, this means we want to satisfy the interpolation condition while strictly minimizing the $L_2$ norm of the weights:
+
+$ min norm(w)_2^2 $
+
+The norm is squared purely for mathematical and computational convenience. Finding the minimum of the squared Euclidean length yields the exact same optimal weights, but completely bypasses the complexity of differentiating a square root.
+
+To implement this in practice, I researched the standard algebraic solution for under-determined systems @rangamani2020interpolating. 
+
+Unlike the classical OLS formula, which tries to invert a $d times d$ matrix (which becomes "broken" and non-invertible when $d > n$), the minimum norm solution flips the perspective. 
+
+It relies on an $n times n$ matrix $(X X^T)$. Since in this regime we have many features but very few examples, this smaller matrix stays "healthy" (full rank) and is easy to invert. By switching from a $d$-dimensional problem to an $n$-dimensional one, the math stays stable and provides the following closed-form solution:
+
+$ w = X^T (X X^T)^(-1) y $
+
+Using this final formula, I trained the model once more, combining the classical OLS for the under-parameterized regime ($d <= n$) with this explicit norm minimization for the over-parameterized regime ($d > n$). The resulting learning dynamics are shown below:
+
+#align(center)[
+  #image("/assets/double_descent.png", width: 420pt)
+]
+
+In this final graph, we can see exactly what happens after the interpolation threshold ($d=n$): the test error starts dropping again, creating the _second descent_ in the over-parameterized regime ($d>n$). This confirms Belkin's theory and explains why modern models, like deep Neural Networks, don't just fail when they have way more parameters than data points ($d>>n$); instead, they actually generalize better.
+
+The logic behind this drop is tied to the inductive bias of the algorithm. Picking the "smoother" function among all those that fit the data is basically a way to apply Occam's razor. Since the model has so many extra degrees of freedom, it can find a solution that touches every training point but does so with smaller weights. This makes the final function less complex, leading it to ignore random noise and giving us the drop in test error we see.
+
+To be sure that this "second descent" was actually driven by the model becoming simpler, I tracked the L2 norm of the weights throughout the experiment. Just as Belkin predicted, as the parameter space grows, the algorithm naturally picks progressively "smoother" solutions, which stabilizes the model's predictions on new data.
+
+#align(center)[
+  #figure(
+    image("/assets/norm_plot.png", width: 400pt),
+    caption: [Empirical result: $L_2$ norm of weights]
+  )
+  
+  #v(15pt)
+  
+  #figure(
+    image("/assets/belkin_norm.png", width: 300pt),
+    caption: [Belkin et al. (2019), Fig. 10 (Norm)]
+  )
+]
+
+Looking at the plot, the norm of the weights spikes exactly at the interpolation threshold ($d=n$). But once we move past that point, the norm steadily decreases as the number of features $d$ grows. This curve matches the drop in test error almost perfectly. It's a great practical proof of the theory: having way more parameters actually helps the model generalize better, because it has enough "room" to find a simpler, smoother way to fit the data.
+
+=== Conclusion
+
+At the end of their paper, Belkin et al. point out that while the classic U-shaped bias-variance curve has taught us a lot about machine learning, it has clear limits. 
+
+The results from my project confirm exactly that. The classical theory works perfectly fine when we have fewer features than examples (the under-parameterized regime). However, it completely misses the mark when it comes to explaining modern machine learning. By pushing past the interpolation threshold ($d > n$) and using the right inductive bias (like keeping the norm small), models don't just crash. Instead, they push through the singularity problem, experience a "second descent" in test error, and actually achieve great generalization.
