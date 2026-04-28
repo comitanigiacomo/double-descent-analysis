@@ -8,8 +8,9 @@
   authors: "Giacomo Comitani",
   date: datetime(year: 2026, month: 05, day: 8),
   abstract: [Historically in machine learning, models were constructed following the bias-variance trade-off, balancing under-fitting and over-fitting to obtain an optimal predictor that does not memorize the training data, but rather learns a general rule to perform well on unseen data. Classically, this implied restricting the number of features d to be strictly less than the number of examples n in the dataset, aiming to find the sweet spot at the minimum of the U-shaped test risk curve. In modern practice, however, highly complex models like neural networks routinely achieve optimal generalization results even when operating in an over-parameterized regime, strictly at or beyond the interpolation threshold (where training error is exactly zero). In their paper, Belkin et al. @belkin2019reconciling reconcile this apparent contradiction by demonstrating the "double descent" risk curve. They observed that by increasing the model capacity (d) beyond the interpolation point, predictors can achieve a second descent in test error, challenging the classical limitations of ML theory. This project aims to empirically reproduce this phenomenon using linear models. By generating a synthetic dataset with noisy linear labels, I follow their theoretical framework to observe the double descent curve and validate the mechanisms described by the authors],
-  table-of-contents: none,
+  table-of-contents:outline(),
   bibliography: bibliography("works.bib"),
+  chapter-pagebreak: false,
 )
 
 #set page(
@@ -32,13 +33,13 @@
 
 = Initial Declaration
 
-I declare that this material, which I now submit for assessment, is entirely my own work and has not been taken from the work of others, save and to the extent that such work has been cited and acknowledged within the text of my work. I understand that plagiarism, collusion, and copying are grave and serious offences in the university and accept the penalties that would be imposed should I engage in plagiarism, collusion or copying. This assignment, or any part of it, has not been previously submitted by me or any other person for assessment on this or any other course of study
+I declare that this material, which I now submit for assessment, is entirely my own work and has not been taken from the work of others, save and to the extent that such work has been cited and acknowledged within the text of my work. I understand that plagiarism, collusion, and copying are grave and serious offences in the university and accept the penalties that would be imposed should I engage in plagiarism, collusion or copying. This assignment, or any part of it, has not been previously submitted by me or any other person for assessment on this or any other course of study.
 
-== Generation of the synthetic dataset
+= Generation of the Synthetic Dataset
 
 The first step of the project was to construct the synthetic dataset. To natively prevent data leakage, I generated the training and test sets as completely independent blocks right from the start. As highlighted by the official scikit-learn guidelines @scikitlearnCommonPitfalls, splitting the data into independent training and test subsets must always be the very first step before any processing. This strict separation guarantees that the model has no possibility of accessing the test data during the training phase.
 
-To simulate a real-world scenario and reproduce the classical U-shaped bias-variance trade-off, I designed the synthetic dataset such that the true generative signal depends exclusively on the first 20 features out of the available 205. By iteratively training the model on an increasing number of features $d$, I was able to observe both the _underfitting_ and _overfitting_ regimes, fully confirming classical statistical learning theory.
+To simulate a real-world scenario and reproduce the classical U-shaped bias-variance trade-off, I designed the synthetic dataset such that the true generative signal depends exclusively on the first 20 features out of the available 205. By iteratively training the model on an increasing number of features $d$, I was able to observe both the _underfitting_ and _overfitting_ regimes, fully confirming classical statistical learning theory. For the main experiments (OLS, Ridge, and Double Descent), I used a default noise level of $sigma = 1.0$.
 
 Since the assignment gave us the freedom to design the data-generating process, I chose to sample the input features $X$ from a standard Gaussian distribution. I made this choice because it naturally gives all the features the exact same scale (mean 0 and variance 1) and keeps them independent. This way, I don't need to manually normalize the data. Following the assignment guidelines, I defined the target labels as a linear combination of these inputs:
 
@@ -56,15 +57,13 @@ where:
 
 During the creation of the labels, I introduced noise to simulate a realistic scenario. This noise was again sampled from a Gaussian distribution. To prevent data leakage, the noise vectors for the training and the test sets were generated via two separate calls. Reusing the same noise for training and test would violate the i.i.d. assumption, creating a situation in which test labels are mathematically correlated with training labels @data-leakage.
 
-Finally, I implemented a fixed seed for the random number generator. A core requirement of this project is reproducibility; the seed acts as a deterministic starting point for the pseudo-random numbers, ensuring that the exact same dataset and results can be perfectly replicated multiple times and on different machines @JMLR:v22:20-303. Without the seed, the process of generating random numbers would initialize at a different state during every execution (typically using the machine's internal clock as a starting point), making it impossible to obtain a perfect replica of the work on different machines.
+Finally, I implemented a fixed seed for the random number generator (seed=30). A core requirement of this project is reproducibility; the seed acts as a deterministic starting point for the pseudo-random numbers, ensuring that the exact same dataset and results can be perfectly replicated multiple times and on different machines @JMLR:v22:20-303. Without the seed, the process of generating random numbers would initialize at a different state during every execution (typically using the machine's internal clock as a starting point), making it impossible to obtain a perfect replica of the work on different machines.
 
-#pagebreak()
-
-== Model Training
+= Model Training
 
 In this section of the report, I will cover the main theoretical concepts that guided the development of the project. As requested by the assignment guidelines, I focused on _Least Squares_ and _Ridge Regression_ to train the linear models.
 
-=== Least Squares
+== Least Squares
 
 The first training approach I focused on was _Ordinary Least Squares_ (OLS). Since I am dealing with a regression task, where $y in RR$ and the linear predictor is $h(x) = w^T x$, I evaluate the model using the _square loss_:
 
@@ -86,10 +85,6 @@ $ w_S = (X^T X)^(-1) X^T y $
 
 As a first step, I implemented this exact mathematical formulation from scratch to train the model and observe the initial results.
 
-#pagebreak()
-
-=== Observations
-
 Strictly implementing the exact closed-form OLS formulation, I obtained the following empirical results:
 
 #align(center)[
@@ -102,13 +97,13 @@ As the dimensionality $d$ increases beyond 20, the model enters the high-varianc
 
 Finally, attempting to increase the features beyond this interpolation point ($d > n$) leads to a breakdown.
 
-=== The Singularity Problem
+== The Singularity Problem
 
 In the previous phase of the work, I used the closed-form Ordinary Least Squares solution, which requires calculating the inverse of the covariance matrix:
 
 $ (X^T X)^(-1) $
 
-From linear algebra, it is known that for a matrix to be invertible, it must be strictly full-rank (i.e., its rank must equal its dimension). The matrix $X^T X$ has dimensions $d times d$, and its rank is bounded by the rank of the original $n times d$ matrix $X$, which is at most $min(n, d)$.
+From linear algebra, it is known that for a matrix to be invertible, it must be strictly full-rank (i.e., its rank must equal its dimension). The matrix $X^T X$ has dimensions $d times d$, and its rank is bounded by the rank of the original $n times d$ matrix $X$, which is at most $min(n, d)$ (since a matrix's rank cannot exceed the number of rows or columns it has).
 
 When the number of features $d$ is less than or equal to $n$, the rank is $d$. The matrix is full-rank and therefore invertible. However, when the number of features strictly exceeds the number of samples ($d > 100$), the maximum possible rank is bounded by $n$. Since $n < d$, the matrix $X^T X$ becomes rank-deficient. Consequently, its determinant becomes exactly zero, making it a singular matrix.
 
@@ -133,7 +128,7 @@ This output perfectly explains the program's behavior. Before the threshold ($d<
 
 Therefore, the erratic points plotted after $d=100$ are not the result of standard overfitting, but merely the visual representation of this computational failure.
 
-=== Ridge Regression
+== Ridge Regression
 
 In real-world scenarios, it is common to encounter highly complex models with a massive number of features that must be trained on a much smaller number of examples ($d > n$). In these high-dimensional settings, classical unregularized ML fails, as we have seen above, because the covariance matrix $X^T X$ becomes singular and not invertible.
 
@@ -145,19 +140,20 @@ This mathematical addition ensures that all the eigenvalues of the matrix become
 
 To empirically verify this theoretical behavior, I ran the same experiment using Ridge Regression with a small penalty parameter ($alpha = 0.1$).
 
+
 #align(center)[
   #image("/assets/ridge_plot.png", width: 400pt)
 ]
 
 As expected, the regularization term completely resolves the singularity breakdown. Looking at the graph, the massive error spike at the interpolation threshold ($d=n=100$) has completely disappeared. Because the matrix inversion is now mathematically stable, the model no longer calculates artificially inflated weights. Instead of failing or producing numerical garbage, the test error remains safely bounded even when the number of features strictly exceeds the number of examples ($d > n$).
 
-While Ridge Regression successfully prevents the model from crashing, it acts as a mathematical constraint. By penalizing the weights, it prevents the model from perfectly fitting the training data, forcing the model to accept some training error (bias) to prevent catastrophic overfitting (variance)@Hastie01102020.
+While Ridge Regression successfully prevents the model from crashing, it acts as a mathematical constraint. By penalizing the weights, it prevents the model from perfectly fitting the training data, forcing the model to accept some training error (bias) to prevent catastrophic overfitting (variance) @Hastie01102020.
 
 However, this fails to explain the reality of modern machine learning. Today's highly complex models, such as large neural networks, operate heavily in the over-parameterized regime $(d>>n)$ often without relying on heavy explicit regularization like Ridge @zhang2016understanding. They are trained until they perfectly interpolate the training data (reaching exactly zero training error), yet they still generalize well to unseen data. Classical theory dictates that such models should strictly fail.
 
 To explain this, we must analyze the Double Descent phenomenon.
 
-=== Double Descent
+= Double Descent
 
 To correctly recreate the double descent curve, I based my approach on the framework proposed by Belkin et al. @belkin2019reconciling, specifically focusing on their implementation for linear predictors.
 
@@ -178,9 +174,7 @@ The norm is squared purely for mathematical and computational convenience. Findi
 
 To implement this in practice, I researched the standard algebraic solution for under-determined systems @rangamani2020interpolating.
 
-Unlike the classical OLS formula, which tries to invert a $d times d$ matrix (which becomes "broken" and non-invertible when $d > n$), the minimum norm solution flips the perspective.
-
-It relies on an $n times n$ matrix $(X X^T)$. Since in this regime we have many features but very few examples, this smaller matrix stays "healthy" (full rank) and is easy to invert. By switching from a $d$-dimensional problem to an $n$-dimensional one, the math stays stable and provides the following closed-form solution:
+Unlike the classical OLS formula, which tries to invert a $d times d$ matrix (which becomes "broken" and non-invertible when $d > n$), the minimum norm solution flips the perspective. It solves the constrained problem: find $w$ such that $X w = y$ while minimizing $norm(w)_2^2$. This yields an $n times n$ matrix $(X X^T)$ instead. Since in this regime we have many features but very few examples, this smaller matrix stays "healthy" (full rank) and is easy to invert. By switching from a $d$-dimensional problem to an $n$-dimensional one, the math stays stable and provides the following closed-form solution:
 
 $ w = X^T (X X^T)^(-1) y $
 
@@ -206,15 +200,15 @@ To be sure that this "second descent" was actually driven by the model becoming 
 
   #figure(
     image("/assets/belkin_norm.png", width: 300pt),
-    caption: [Belkin et al. (2019), Fig. 10 (Norm)],
+    caption: [Belkin et al. @belkin2019reconciling, Fig. 10 (Norm)],
   )
 ]
 
 Looking at the plot, the norm of the weights spikes exactly at the interpolation threshold ($d=n$). But once we move past that point, the norm steadily decreases as the number of features $d$ grows. This curve matches the drop in test error almost perfectly. It's a great practical proof of the theory: having way more parameters actually helps the model generalize better, because it has enough "room" to find a simpler, smoother way to fit the data.
 
-== Extension
+= Extensions
 
-=== Gradient Descent vs Closed-Form Solution
+== Gradient Descent vs Closed-Form Solution
 
 In the previous phase, I used a closed formula to find the minimum-norm solution for the $d > n$ regime. While this works in theory, inverting massive matrices in real-world scenarios is computationally expensive. A standard alternative is _Gradient Descent_.
 
@@ -232,9 +226,9 @@ To verify this, I plotted the test error of my iterative Gradient Descent agains
 
 Looking at the graph, the two curves perfectly overlap in both the under-parameterized and highly over-parameterized regimes, confirming the implicit bias theory.
 
-A divergence occurs exactly at the interpolation threshold ($d=n$). While the closed-form solution suffers from a massive error spike due to the inversion of a nearly singular matrix, the Gradient Descent curve remains significantly lower and more stable. This happens because Gradient Descent does not divide by zero; instead, it takes iterative steps. Running the algorithm for a finite number of epochs prevents the weights from reaching the astronomically large values caused by the singularity.
+A divergence occurs exactly at the interpolation threshold ($d=n$). While the closed-form solution suffers from a massive error spike due to the inversion of a nearly singular matrix, the Gradient Descent curve remains significantly lower and more stable. This happens because Gradient Descent does not divide by zero; instead, it takes iterative steps. Running the algorithm for 5000 epochs with a learning rate of 0.01 prevents the weights from reaching the astronomically large values caused by the singularity.
 
-=== Effect of noise
+== Effect of Noise
 
 To conclude the project, I explored how the intensity of noise in the training data affects the Double Descent curve.
 
@@ -244,11 +238,11 @@ By comparing a "clean" dataset ($sigma = 0.2$) with a "noisy" one ($sigma = 1.5$
   #image("/assets/noise_effect.png", width: 400pt)
 ]
 
-As shown in the plot, the high-noise curve (red) remains consistently above the low-noise one (green). As discussed in recent literature @Ullah, this occurs because at the threshold $d=n$, the model is forced to perfectly fit every data point. If these points contain high levels of noise, the weights must fluctuate wildly to interpolate them, leading to bad generalization.
+As shown in the plot, the high-noise curve (red) remains consistently above the low-noise one (green). As discussed in recent literature @Ullah2024, this occurs because at the threshold $d=n$, the model is forced to perfectly fit every data point. At this critical point, there is precisely one solution to the system $X w = y$, so the model must memorize all the noise in the training set. If these points contain high levels of noise, the weights must fluctuate wildly to interpolate them, leading to bad generalization.
 
 I maintained the _logarithmic scale_ for this visualization because the disparity between the two peaks is so large (nearly two orders of magnitude) that a linear scale would have made the low-noise curve appear flat, hiding its double descent.
 
-=== Conclusions
+= Conclusions
 
 At the end of their paper, Belkin et al. point out that while the classic U-shaped bias-variance curve has taught us a lot about machine learning, it has clear limits.
 
