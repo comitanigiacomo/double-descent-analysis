@@ -7,7 +7,7 @@
   title: [Project 4: Double Descent in Linear Models],
   authors: "Giacomo Comitani",
   date: datetime(year: 2026, month: 05, day: 8),
-  abstract: [Historically in machine learning, models were constructed following the bias-variance trade-off, balancing under-fitting and over-fitting to obtain an optimal predictor that does not memorize the training data, but rather learns a general rule to perform well on unseen data. Classically, this implied restricting the number of features d to be strictly less than the number of examples n in the dataset, aiming to find the sweet spot at the minimum of the U-shaped test risk curve. In modern practice, however, highly complex models like neural networks routinely achieve optimal generalization results even when operating in an over-parameterized regime, strictly at or beyond the interpolation threshold (where training error is exactly zero). In their paper, Belkin et al. @belkin2019reconciling reconcile this apparent contradiction by demonstrating the "double descent" risk curve. They observed that by increasing the model capacity (d) beyond the interpolation point, predictors can achieve a second descent in test error, challenging the classical limitations of ML theory. This project aims to empirically reproduce this phenomenon using linear models. By generating a synthetic dataset with noisy linear labels, I follow their theoretical framework to observe the double descent curve and validate the mechanisms described by the authors],
+  abstract: [Historically in machine learning, models were constructed following the bias-variance trade-off, balancing under-fitting and over-fitting to obtain an optimal predictor that does not memorize the training data, but rather learns a general rule to perform well on unseen data. Classically, this implied restricting the number of features to be strictly less than the number of examples in the dataset, aiming to find the sweet spot at the minimum of the U-shaped test risk curve. In modern practice, however, highly complex models like neural networks routinely achieve optimal generalization results even when operating in an over-parameterized regime, strictly at or beyond the interpolation threshold (where training error is exactly zero). In their paper, Belkin et al. @belkin2019reconciling reconcile this apparent contradiction by demonstrating the "double descent" risk curve. They observed that by increasing the model capacity beyond the interpolation point, predictors can achieve a second descent in test error, challenging the classical limitations of ML theory. This project aims to empirically reproduce this phenomenon using linear models. By generating a synthetic dataset with noisy linear labels, I follow their theoretical framework to observe the double descent curve and validate the mechanisms described by the authors],
   table-of-contents:outline(),
   bibliography: bibliography("works.bib"),
   chapter-pagebreak: false,
@@ -37,9 +37,9 @@ I declare that this material, which I now submit for assessment, is entirely my 
 
 = Generation of the Synthetic Dataset
 
-The first step of the project was to construct the synthetic dataset. To natively prevent data leakage, I generated the training and test sets as completely independent blocks right from the start. As highlighted by the official scikit-learn guidelines @scikitlearnCommonPitfalls, splitting the data into independent training and test subsets must always be the very first step before any processing. This strict separation guarantees that the model has no possibility of accessing the test data during the training phase.
+The first step of the project was to construct the synthetic dataset. To prevent data leakage, I generated the training and test sets as completely independent blocks right from the start. As highlighted by the official scikit-learn guidelines @scikitlearnCommonPitfalls, splitting the data into independent training and test subsets must always be the very first step before any processing. This strict separation guarantees that the model has no possibility of accessing the test data during the training phase.
 
-To simulate a real-world scenario and reproduce the classical U-shaped bias-variance trade-off, I designed the synthetic dataset such that the true generative signal depends exclusively on the first 20 features out of the available 205. By iteratively training the model on an increasing number of features $d$, I was able to observe both the _underfitting_ and _overfitting_ regimes, fully confirming classical statistical learning theory. For the main experiments (OLS, Ridge, and Double Descent), I used a default noise level of $sigma = 1.0$.
+To simulate a real-world scenario and reproduce the classical U-shaped bias-variance trade-off, I designed the synthetic dataset such that the true target values are calculated using only the first 20 features out of the available 205. By iteratively training the model on an increasing number of features $d$, I was able to observe both the _underfitting_ and _overfitting_ regimes, fully confirming classical statistical learning theory. For the main experiments (OLS, Ridge, and Double Descent), I used a default noise level of $sigma = 1.0$.
 
 Since the assignment gave us the freedom to design the data-generating process, I chose to sample the input features $X$ from a standard Gaussian distribution. I made this choice because it naturally gives all the features the exact same scale (mean 0 and variance 1) and keeps them independent. This way, I don't need to manually normalize the data. Following the assignment guidelines, I defined the target labels as a linear combination of these inputs:
 
@@ -53,7 +53,7 @@ where:
 
 - $w^* in RR^d$ is the vector of the weights.
 
-- $epsilon in RR^n$ is the noise vector, sampled from a Gaussian distribution with mean zero to introduce stochasticity into the observations.
+- $epsilon in RR^n$ is the noise vector, sampled from a Gaussian distribution with mean zero and standard deviation $sigma$ to introduce stochasticity into the observations.
 
 During the creation of the labels, I introduced noise to simulate a realistic scenario. This noise was again sampled from a Gaussian distribution. To prevent data leakage, the noise vectors for the training and the test sets were generated via two separate calls. Reusing the same noise for training and test would violate the i.i.d. assumption, creating a situation in which test labels are mathematically correlated with training labels @data-leakage.
 
@@ -65,9 +65,9 @@ In this section of the report, I will cover the main theoretical concepts that g
 
 == Least Squares
 
-The first training approach I focused on was _Ordinary Least Squares_ (OLS). Since I am dealing with a regression task, where $y in RR$ and the linear predictor is $h(x) = w^T x$, I evaluate the model using the _square loss_:
+The first training approach I focused on was _Ordinary Least Squares_ (OLS). Since I am dealing with a regression task, where $y_t in RR$ and the linear predictor is $h(x_t) = w^T x_t$, I evaluate the model using the _square loss_:
 
-$ ell(w) = (w^T x - y)^2 $
+$ ell(w) = (w^T x_t - y_t)^2 $
 
 The Empirical Risk Minimization (ERM) solution minimizes the residual sum of squares:
 
@@ -83,9 +83,7 @@ If $X^T X$ is invertible (i.e., the features are linearly independent), we obtai
 
 $ w_S = (X^T X)^(-1) X^T y $
 
-As a first step, I implemented this exact mathematical formulation from scratch to train the model and observe the initial results.
-
-Strictly implementing the exact closed-form OLS formulation, I obtained the following empirical results:
+As a first step, I implemented this mathematical formulation from scratch. By strictly applying the closed-form OLS solution, I obtained the following empirical results:
 
 #align(center)[
   #image("/assets/OLS_implementation.png", width: 400pt)
@@ -93,7 +91,7 @@ Strictly implementing the exact closed-form OLS formulation, I obtained the foll
 
 Analyzing the learning dynamics, the expected classical behavior is clearly visible across the different parameterization regimes. In the initial phase ($d < 20$), the model suffers from high bias. Because the true labels are generated using exactly 20 features, restricting the model to fewer dimensions deprives it of critical information needed to capture the underlying phenomenon, which naturally results in a high test error. However, at exactly $d = 20$, the model's capacity perfectly matches the true complexity of the data. Here, it gains access to all the necessary predictive information without any distracting noise, successfully reaching a "sweet spot" that minimizes the test error.
 
-As the dimensionality $d$ increases beyond 20, the model enters the high-variance regime. It starts leveraging the additional, irrelevant features to blindly memorize the stochastic noise present in the training set. Consequently, the test error rapidly surges, while the training error steadily decreases. This overfitting phase culminates at the interpolation threshold ($d = n = 100$), where the model perfectly memorizes the training data, driving the training error to absolute zero.
+As the dimensionality $d$ increases beyond 20, the model enters the high-variance regime. It starts leveraging the irrelevant features to blindly memorize the stochastic noise present in the training set. Consequently, the test error rapidly increases, while the training error decreases. This overfitting phase culminates at the interpolation threshold ($d = n = 100$), where the model perfectly memorizes the training data, driving the training error to absolute zero.
 
 Finally, attempting to increase the features beyond this interpolation point ($d > n$) leads to a breakdown.
 
@@ -107,7 +105,13 @@ From linear algebra, it is known that for a matrix to be invertible, it must be 
 
 When the number of features $d$ is less than or equal to $n$, the rank is $d$. The matrix is full-rank and therefore invertible. However, when the number of features strictly exceeds the number of samples ($d > 100$), the maximum possible rank is bounded by $n$. Since $n < d$, the matrix $X^T X$ becomes rank-deficient. Consequently, its determinant becomes exactly zero, making it a singular matrix.
 
-Mathematically, calculating the inverse involves dividing by the determinant. Since dividing by zero is undefined, the program should simply halt and throw an exception for $d > 100$. However, the graph displays strange, erratic points beyond the threshold instead of an immediate crash. This happens due to floating-point precision issues: the computer approximates the theoretically zero-valued determinant (and the zero eigenvalues) as infinitesimally small numbers (e.g., $10^(-16)$). Dividing by these near-zero values avoids a hard crash but produces astronomically large, garbage weights.
+Since the determinant is mathematically equivalent to the product of all eigenvalues, the presence of zero eigenvalues when $d > n$ is what drives the determinant to zero.
+
+Mathematically, calculating the inverse involves dividing by the determinant:
+
+$ (X^T X)^(-1) = 1/(det(X^T X)) dot "adj"(X^T X) $
+
+Since dividing by zero is undefined, the program should simply throw an exception for $d > 100$. However, the graph displays strange, erratic points beyond the threshold instead of an immediate crash. This happens due to floating-point precision issues: the computer approximates the theoretically zero-valued determinant (and the zero eigenvalues) as infinitesimally small numbers (e.g., $10^(-16)$). As matrix inversion involves dividing by these near-zero eigenvalues, the computation avoids a crush but produces higly unstable and increasingly large weights.
 
 To empirically verify that these anomalous points are just numerical artifacts and why the code does not immediately crash, I logged the minimum eigenvalue of the covariance matrix $X^T X$ and the maximum weight magnitude during the training loop:
 
@@ -124,15 +128,15 @@ To empirically verify that these anomalous points are just numerical artifacts a
   ```
 ]
 
-This output perfectly explains the program's behavior. Before the threshold ($d<100$), the minimum eigenvalue is significantly greater than zero, allowing for a stable matrix inversion with bounded weights (around 2.4). However, as soon as $d>100$, the minimum eigenvalue drops to floating-point zero ($10^(-15)$). Dividing by this microscopic approximation allows the code to keep executing without triggering a ZeroDivisionError, but it causes the weights to skyrocket by several orders of magnitude (e.g., reaching $4.25 times 10^3$ at $d=190$).
+This output perfectly explains the program's behavior. Before the threshold ($d<100$), the minimum eigenvalue is significantly greater than zero, allowing for a stable matrix inversion with bounded weights (around 2.4). However, as soon as $d>100$, the minimum eigenvalue drops to floating-point zero ($10^(-15)$). Dividing by this microscopic approximation allows the code to keep executing without triggering a ZeroDivisionError, but it causes the weights to become progressively unstable as $d$ increases (e.g., reaching $4.25 times 10^3$ at $d=190$).
 
 Therefore, the erratic points plotted after $d=100$ are not the result of standard overfitting, but merely the visual representation of this computational failure.
 
 == Ridge Regression
 
-In real-world scenarios, it is common to encounter highly complex models with a massive number of features that must be trained on a much smaller number of examples ($d > n$). In these high-dimensional settings, classical unregularized ML fails, as we have seen above, because the covariance matrix $X^T X$ becomes singular and not invertible.
+In real-world scenarios, it is common to encounter highly complex models with a massive number of features that must be trained on a much smaller number of examples ($d > n$). In these high-dimensional settings, classical unregularized ML fails, as we have seen above, because the matrix $X^T X$ becomes singular and not invertible.
 
-To overcome this problem, a standard approach taught in this course is to apply _Ridge Regression_ ($L_2$ regularization). Ridge regression basically adds a small positive constant, $alpha$, to the main diagonal of the covariance matrix:
+To overcome this problem, a standard approach is to apply _Ridge Regression_ ($L_2$ regularization). Ridge regression basically adds a small positive constant, $alpha$, to the main diagonal of the matrix:
 
 $ w_(S, alpha) = (X^T X + alpha I)^(-1) X^T y $
 
@@ -145,7 +149,7 @@ To empirically verify this theoretical behavior, I ran the same experiment using
   #image("/assets/ridge_plot.png", width: 400pt)
 ]
 
-As expected, the regularization term completely resolves the singularity breakdown. Looking at the graph, the massive error spike at the interpolation threshold ($d=n=100$) has completely disappeared. Because the matrix inversion is now mathematically stable, the model no longer calculates artificially inflated weights. Instead of failing or producing numerical garbage, the test error remains safely bounded even when the number of features strictly exceeds the number of examples ($d > n$).
+As expected, the regularization term completely resolves the singularity breakdown. Looking at the graph, the massive error spike at the interpolation threshold ($d=n=100$) has completely disappeared. Because the matrix inversion is now mathematically stable, the model no longer calculates artificially inflated weights. The test error remains safely bounded even when the number of features strictly exceeds the number of examples ($d > n$).
 
 While Ridge Regression successfully prevents the model from crashing, it acts as a mathematical constraint. By penalizing the weights, it prevents the model from perfectly fitting the training data, forcing the model to accept some training error (bias) to prevent catastrophic overfitting (variance) @Hastie01102020.
 
@@ -166,7 +170,9 @@ Citing the paper:
 
 Among these options, I chose to implement the _explicit norm minimization_ from scratch.
 
-In the over-parameterized regime ($d > n$), the model has more features than training examples. This creates an under-determined mathematical system: there are infinitely many different weight vectors $w$ that can perfectly fit the training data (achieving $X w = y$). To decide which of these infinite solutions to use, we apply a mathematical version of Occam's razor: we select the "simplest" model by finding the weights that are closest to zero. Mathematically, this means we want to satisfy the interpolation condition while strictly minimizing the $L_2$ norm of the weights:
+In the over-parameterized regime ($d > n$), the model has more features than training examples. This creates an under-determined mathematical system: there are infinitely many different weight vectors $w$ that can perfectly fit the training data (achieving $X w = y$).
+
+In accordance with the inductive bias described by Belkin et al., to decide which of these infinite solutions to use, I applied a mathematical version of Occam's razor: I selected the "simplest" model by finding the weights that are closest to zero. Mathematically, this means I want to satisfy the interpolation condition while strictly minimizing the $L_2$ norm of the weights:
 
 $ min norm(w)_2^2 $
 
@@ -174,7 +180,7 @@ The norm is squared purely for mathematical and computational convenience. Findi
 
 To implement this in practice, I researched the standard algebraic solution for under-determined systems @rangamani2020interpolating.
 
-Unlike the classical OLS formula, which tries to invert a $d times d$ matrix (which becomes "broken" and non-invertible when $d > n$), the minimum norm solution flips the perspective. It solves the constrained problem: find $w$ such that $X w = y$ while minimizing $norm(w)_2^2$. This yields an $n times n$ matrix $(X X^T)$ instead. Since in this regime we have many features but very few examples, this smaller matrix stays "healthy" (full rank) and is easy to invert. By switching from a $d$-dimensional problem to an $n$-dimensional one, the math stays stable and provides the following closed-form solution:
+Unlike the classical OLS formula, which tries to invert a $d times d$ matrix (which becomes singular and non-invertible when $d > n$), the minimum norm solution flips the perspective. It solves the constrained problem: find $w$ such that $X w = y$ while minimizing $norm(w)_2^2$. This yields an $n times n$ matrix $(X X^T)$ instead. Since in this regime we have many features but very few examples, this smaller matrix stays "healthy" (full rank) and is easy to invert. By switching from a $d$-dimensional problem to an $n$-dimensional one, the math stays stable and provides the following closed-form solution:
 
 $ w = X^T (X X^T)^(-1) y $
 
@@ -186,7 +192,7 @@ Using this final formula, I trained the model once more, combining the classical
 
 In this final graph, we can see exactly what happens after the interpolation threshold ($d=n$): the test error starts dropping again, creating the _second descent_ in the over-parameterized regime ($d>n$). This confirms Belkin's theory and explains why modern models, like deep Neural Networks, don't just fail when they have way more parameters than data points ($d>>n$); instead, they actually generalize better.
 
-The logic behind this drop is tied to the inductive bias of the algorithm. Picking the "smoother" function among all those that fit the data is basically a way to apply Occam's razor. Since the model has so many extra degrees of freedom, it can find a solution that touches every training point but does so with smaller weights. This makes the final function less complex, leading it to ignore random noise and giving us the drop in test error we see.
+The logic behind this drop is tied to the inductive bias of the algorithm. Since the model has so many extra degrees of freedom, it can find a solution that touches every training point but does so with smaller weights. This makes the final function less complex, leading it to ignore random noise and giving us the drop in test error we see.
 
 To be sure that this "second descent" was actually driven by the model becoming simpler, I tracked the L2 norm of the weights throughout the experiment. Just as Belkin predicted, as the parameter space grows, the algorithm naturally picks progressively "smoother" solutions, which stabilizes the model's predictions on new data.
 
@@ -204,7 +210,7 @@ To be sure that this "second descent" was actually driven by the model becoming 
   )
 ]
 
-Looking at the plot, the norm of the weights spikes exactly at the interpolation threshold ($d=n$). But once we move past that point, the norm steadily decreases as the number of features $d$ grows. This curve matches the drop in test error almost perfectly. It's a great practical proof of the theory: having way more parameters actually helps the model generalize better, because it has enough "room" to find a simpler, smoother way to fit the data.
+Looking at the plot, (note the logarithmic scale on the Y-axis), the norm of the weights spikes exactly at the interpolation threshold ($d=n$). But once we move past that point, the norm steadily decreases as the number of features $d$ grows. This curve matches the drop in test error almost perfectly. It's a great practical proof of the theory: having way more parameters actually helps the model generalize better, because it has enough "room" to find a simpler, smoother way to fit the data.
 
 = Extensions
 
@@ -216,7 +222,7 @@ Gradient descent updates the weights step by step to minimize the error. But sin
 
 To test this, I implemented a simple Gradient Descent from scratch. Following the literature, I initialized all weights to zero ($w = 0$).
 
-This starting point triggers a phenomenon called _implicit regularization_ @neyshabur2014search. Without needing any complex matrix inversion, the optimization algorithm inherently acts as a regularizer. Specifically, Zhang et al. @zhang2016understanding demonstrated that for over-parameterized linear models, starting gradient descent at zero guarantees convergence to the exact minimum $L_2$-norm solution.
+This starting point triggers a phenomenon called _implicit regularization_ @neyshabur2014search. Without needing any complex matrix inversion, the Gradient Descent algorithm inherently acts as a regularizer. Specifically, Zhang et al. @zhang2016understanding demonstrated that for over-parameterized linear models, starting Gradient Descent at zero guarantees convergence to the exact minimum $L_2$-norm solution.
 
 To verify this, I plotted the test error of my iterative Gradient Descent against my previous closed-form formula:
 
@@ -238,7 +244,7 @@ By comparing a "clean" dataset ($sigma = 0.2$) with a "noisy" one ($sigma = 1.5$
   #image("/assets/noise_effect.png", width: 400pt)
 ]
 
-As shown in the plot, the high-noise curve (red) remains consistently above the low-noise one (green). As discussed in recent literature @Ullah2024, this occurs because at the threshold $d=n$, the model is forced to perfectly fit every data point. At this critical point, there is precisely one solution to the system $X w = y$, so the model must memorize all the noise in the training set. If these points contain high levels of noise, the weights must fluctuate wildly to interpolate them, leading to bad generalization.
+As shown in the plot, the high-noise curve (orange) remains consistently above the low-noise one (blue). As discussed in recent literature @Ullah2024, this occurs because at the threshold $d=n$, the model is forced to perfectly fit every data point. At this critical point, there is precisely one solution to the system $X w = y$, so the model must memorize all the noise in the training set. If these points contain high levels of noise, the weights must fluctuate wildly to interpolate them, leading to bad generalization.
 
 I maintained the _logarithmic scale_ for this visualization because the disparity between the two peaks is so large (nearly two orders of magnitude) that a linear scale would have made the low-noise curve appear flat, hiding its double descent.
 

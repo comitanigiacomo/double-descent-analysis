@@ -1,5 +1,5 @@
 import numpy as np
-from . import models, metrics
+from src import models, metrics
 
 # Train OLS across different dimensions and measure errors
 def run_ols_experiment(X_train_full, y_train, X_test_full, y_test, d_values):
