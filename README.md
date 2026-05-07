@@ -16,16 +16,15 @@ The repository contains an implementation and analysis of the double descent phe
 ```
 .
 ├── src/                          # Main source code modules
-│   ├── data.py                   # Data loading and preprocessing functions
+│   ├── data.py                   # Synthetic data generation
 │   ├── models.py                 # Model implementations (OLS, Ridge, Min Norm)
-│   ├── experiments.py            # Experiment runners and configurations
-│   ├── metrics.py                # Error metrics and evaluation functions
-│   └── plotting.py               # Visualization and plotting utilities
+│   ├── experiments.py            # Experiment runners
+│   ├── metrics.py                # Error metrics computation
+│   └── plotting.py               # Visualization utilities
 ├── notebooks/
-│   └── double_descent_analysis.ipynb  # Jupyter notebook with full analysis and results
-├── data/                         # Directory for datasets
+│   └── double_descent_analysis.ipynb  # Main analysis (all experiments)
 ├── assets/                       # Generated plots and figures
-├── report/                       # Final project report and documentation
+├── report/                       # Final project report (Typst format)
 ├── requirements.txt              # Python dependencies
 ├── LICENSE                       # Project license
 └── README.md                     # This file
@@ -33,21 +32,17 @@ The repository contains an implementation and analysis of the double descent phe
 
 ## Setup and Usage
 
-First, install the required dependencies:
+Install the required dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The main analysis and experiments are contained in the Jupyter notebook located at `notebooks/double_descent_analysis.ipynb`. You can start it with:
+Run the complete analysis in the Jupyter notebook:
 
 ```bash
-jupyter lab notebooks/
+jupyter lab notebooks/double_descent_analysis.ipynb
 ```
 
-Alternatively, if you want to use the source modules directly in your own scripts, you can import them as follows:
-
-```python
-from src import data, models, experiments, metrics, plotting
-```
+This notebook generates all experiments and plots shown in the report.
 
