@@ -24,7 +24,7 @@ The repository contains an implementation and analysis of the double descent phe
 ├── notebooks/
 │   └── double_descent_analysis.ipynb  # Main analysis (all experiments)
 ├── assets/                       # Generated plots and figures
-├── report/                       # Final project report (Typst format)
+├── report/                       # Final project report (Typst & LaTeX formats)
 ├── requirements.txt              # Python dependencies
 ├── LICENSE                       # Project license
 └── README.md                     # This file
@@ -45,4 +45,8 @@ jupyter lab notebooks/double_descent_analysis.ipynb
 ```
 
 This notebook generates all experiments and plots shown in the report.
+
+## Report Formats
+
+To accommodate different formatting preferences and strict submission requirements, the final project report is provided in both `Typst` and `LaTeX` formats. Both versions are functionally identical in content and can be found inside the `report/` directory.
 
